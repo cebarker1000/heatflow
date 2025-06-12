@@ -120,9 +120,13 @@ class RowDirichletBC:
         return self._bc
 
     def update(self, t):
-        """Call each time step if the BC value depends on *t*."""
-        vals = np.array([self._value_callable(x, y, t) for x, y in self.dof_coords],
+        # drop z, compute vals
+        xy   = self.dof_coords[:, :2]
+        vals = np.array([ self._value_callable(x, y, t)
+                        for x, y in xy ],
                         dtype=PETSc.ScalarType)
+
+        # write into function
         self._g.x.array[self.row_dofs] = vals
         self._g.x.scatter_forward()
 
