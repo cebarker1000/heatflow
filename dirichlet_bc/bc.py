@@ -138,3 +138,29 @@ class RowDirichletBC:
         bc = RowDirichletBC(V, location, coord=coord, length=length, width=width, value=value)
         bc.update(0.0)
         return bc
+    
+    @staticmethod
+    def describe_row_bcs(bc_list, *, label="Row BC"):
+        """
+        Print coordinate bounds for every RowDirichletBC in bc_list.
+
+        Parameters
+        ----------
+        bc_list : sequence of RowDirichletBC | fem.DirichletBC
+            Mix-and-match is fine; non-Row objects are skipped.
+        label   : str
+            Prefix for each line of output (purely cosmetic).
+        """
+        for k, bc in enumerate(bc_list):
+            # Skip non-RowDirichletBC objects
+            if not isinstance(bc, RowDirichletBC):
+                continue
+
+            xy = bc.dof_coords              # (n, 3) array, already stored
+            x_min, x_max = xy[:, 0].min(), xy[:, 0].max()
+            y_min, y_max = xy[:, 1].min(), xy[:, 1].max()
+            print(f"{label} #{k}: "
+                f"x in [{x_min:.3e}, {x_max:.3e}]  "
+                f"y in [{y_min:.3e}, {y_max:.3e}]  "
+                f"(n = {xy.shape[0]} DOFs)")
+

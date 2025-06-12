@@ -12,6 +12,9 @@ except (ModuleNotFoundError, ImportError):
             pass
     COMM = _SerialComm()
 
+SCALE = 1e6          # 1 model unit = 1 µm
+
+
 class Mesh:
     """
     Stores and builds a gmsh mesh over a rectangular domain with multiple materials.
@@ -25,85 +28,120 @@ class Mesh:
     """
 
     # Construction ---------------------------------------------------------------------------
-    def __init__(self, name, boundaries, materials, default_mesh_size=0.1):
+    def __init__(self, name, boundaries, materials):
         if not isinstance(name, str): raise TypeError("name must be a string")
         self.name = name
         if len(boundaries) != 4: raise ValueError("boundaries must be 4 floats")
         self.boundaries = [float(b) for b in boundaries]
         self.materials = list(materials)
-        self.default_mesh_size = float(default_mesh_size)
         self.material_tags = {}
         self.mesh = None
 
+    # Mesh Validation ------------------------------------------------------------------------
+    def _check_mesh(self, base_bounds):
+        """
+        Raise if:
+          1) base_bounds duplicates any material
+          2) two materials have identical bounds
+          3) any material has non-positive width/height
+        """
+        seen = {}
+        bb = tuple(round(x, 12) for x in base_bounds)  # 1 pm precision
+        seen[bb] = "BASE"
+
+        for m in self.materials:
+            bbox = tuple(round(x, 12) for x in m.boundaries)
+            if bbox in seen:
+                who = seen[bbox]
+                raise RuntimeError(
+                    f"Duplicate rectangle:\n"
+                    f"    {m.name} has boundaries {bbox}\n"
+                    f"    already used by {who}"
+                )
+            seen[bbox] = m.name
+
+        for m in self.materials:
+            bx, BX, by, BY = m.boundaries
+            dx, dy = BX - bx, BY - by
+            if dx <= 0 or dy <= 0:
+                raise ValueError(
+                    f"{m.name}: invalid rectangle "
+                    f"(bx,BX,by,BY) = {m.boundaries} → dx={dx}, dy={dy}"
+                )
+        print('no mesh errors found')
+
+
     # Mesh Generation ------------------------------------------------------------------------
     def build_mesh(self):
-        """Builds a 2D mesh with piecewise-constant sizes via Box fields and groups background."""
+        """Build a 2-D mesh of perfectly touching rectangles—one per material—using the *geo* kernel.
+        No base surface; each material defines its own surface and physical tag. Mesh is refined inside each material
+        to `mesh_size` and coarser elsewhere to the maximum of all material sizes.
+        """
+        # reset gmsh
+        if gmsh.isInitialized():
+            gmsh.finalize()
+
         gmsh.initialize()
+        gmsh.model.add(self.name)
+        self._check_mesh(self.boundaries)
+
         if COMM.rank == 0:
-            # 1) create base rectangle and material rectangles
-            xmin, xmax, ymin, ymax = self.boundaries
-            base = gmsh.model.occ.addRectangle(xmin, ymin, 0, xmax-xmin, ymax-ymin)
-            surfaces = [(2, base)]
+            # determine default (coarse) mesh size as max of material sizes
+            mat_sizes = [mat.mesh_size for mat in self.materials]
+            default_size = max(mat_sizes) if mat_sizes else 1.0
+
+            # 1) create geometry primitives for each material rectangle
             for mat in self.materials:
                 bx, BX, by, BY = mat.boundaries
-                tag = gmsh.model.occ.addRectangle(bx, by, 0, BX-bx, BY-by)
-                mat._tag = tag
-                surfaces.append((2, tag))
+                pa = gmsh.model.geo.addPoint(bx,  by,  0.0)
+                pb = gmsh.model.geo.addPoint(BX, by,  0.0)
+                pc = gmsh.model.geo.addPoint(BX, BY, 0.0)
+                pd = gmsh.model.geo.addPoint(bx,  BY, 0.0)
+                la = gmsh.model.geo.addLine(pa, pb)
+                lb = gmsh.model.geo.addLine(pb, pc)
+                lc = gmsh.model.geo.addLine(pc, pd)
+                ld = gmsh.model.geo.addLine(pd, pa)
+                cl = gmsh.model.geo.addCurveLoop([la, lb, lc, ld])
+                surf = gmsh.model.geo.addPlaneSurface([cl])
+                mat._tag = surf
 
-            # 2) fragment all so that surfaces align and split
-            gmsh.model.occ.fragment(surfaces, surfaces)
-            gmsh.model.occ.synchronize()
+            # sync geometry before groups and fields
+            gmsh.model.geo.synchronize()
 
-            # 3) create a Box field per material
+            # 2) assign physical groups and build mesh-size fields
             box_fields = []
             for mat in self.materials:
+                surf = mat._tag
+                pg = gmsh.model.addPhysicalGroup(2, [surf])
+                gmsh.model.setPhysicalName(2, pg, mat.name)
+                mat.tag = pg
+                self.material_tags[mat.name] = pg
+
                 bf = gmsh.model.mesh.field.add('Box')
                 bx, BX, by, BY = mat.boundaries
                 gmsh.model.mesh.field.setNumber(bf, 'XMin', bx)
                 gmsh.model.mesh.field.setNumber(bf, 'XMax', BX)
                 gmsh.model.mesh.field.setNumber(bf, 'YMin', by)
                 gmsh.model.mesh.field.setNumber(bf, 'YMax', BY)
-                size_in = mat.mesh_size if mat.mesh_size is not None else self.default_mesh_size
-                gmsh.model.mesh.field.setNumber(bf, 'VIn', size_in)
-                gmsh.model.mesh.field.setNumber(bf, 'VOut', self.default_mesh_size)
+                # refine inside to material size, coarse outside to default_size
+                gmsh.model.mesh.field.setNumber(bf, 'VIn', mat.mesh_size)
+                gmsh.model.mesh.field.setNumber(bf, 'VOut', default_size)
                 box_fields.append(bf)
 
-            # 4) combine via Min field, set as background
+            # 3) combine fields via Min and set as background
             if box_fields:
                 minf = gmsh.model.mesh.field.add('Min')
                 gmsh.model.mesh.field.setNumbers(minf, 'FieldsList', box_fields)
                 gmsh.model.mesh.field.setAsBackgroundMesh(minf)
 
-            # 5) assign physical groups by centroid classification
-            all_surfs = gmsh.model.occ.getEntities(2)
-            bg_tags = []
-            for dim, tag in all_surfs:
-                x, y, z = gmsh.model.occ.getCenterOfMass(dim, tag)
-                assigned = False
-                for mat in self.materials:
-                    if mat.contains(x, y):
-                        # Create (or retrieve) the Physical Group ID
-                        pg = self.material_tags.get(mat.name)
-                        if pg is None:
-                            pg = gmsh.model.addPhysicalGroup(2, [tag])
-                            gmsh.model.setPhysicalName(2, pg, mat.name)
-                            self.material_tags[mat.name] = pg
-                        # **Save it on the Material object** for later use
-                        mat.tag = pg
-                        assigned = True
-                        break
-                if not assigned:
-                    bg_tags.append(tag)
-
-            # background group
-            pg_bg = gmsh.model.addPhysicalGroup(2, bg_tags)
-            gmsh.model.setPhysicalName(2, pg_bg, 'background')
-            self.material_tags['background'] = pg_bg
-
         COMM.Barrier()
         gmsh.model.mesh.generate(2)
         self.mesh = gmsh
         COMM.Barrier()
+
+
+
+
 
     # FEniCs Interoperability ------------------------------------------------------------
     def to_dolfinx(self, *, comm=COMM, gdim: int = 2, rank: int = 0):
