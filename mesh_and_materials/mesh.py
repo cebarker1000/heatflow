@@ -106,6 +106,7 @@ class Mesh:
                 mat._tag = surf
 
             # sync geometry before groups and fields
+            gmsh.model.geo.removeAllDuplicates()
             gmsh.model.geo.synchronize()
 
             # 2) assign physical groups and build mesh-size fields
