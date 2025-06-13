@@ -139,6 +139,10 @@ class RowDirichletBC:
         bc.update(0.0)
         return bc
     
+    # -------------------------------------------------------------------
+    # Convenience function to examine BC coords
+    # -------------------------------------------------------------------
+
     @staticmethod
     def describe_row_bcs(bc_list, *, label="Row BC"):
         """
