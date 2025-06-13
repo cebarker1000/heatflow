@@ -17,6 +17,10 @@ class RowDirichletBC:
         "left", "right", "bottom", "top", "outer", "x", or "y".
     coord    : float, optional
         Required for inner-line cases (location "x" or "y"). Ignored otherwise.
+    center   : float, optional
+        Sets the coordinate of the center of the BC. If location is 'x' or 'y'
+        and center is None, sets the center of the BC to the middle of the x/y 
+        extent of the simulation.
     length   : float, optional
         If provided, only dofs whose **orthogonal** coordinate lies within
         ±length/2 of the domain midpoint are clamped, keeping the patch centred.
@@ -27,10 +31,11 @@ class RowDirichletBC:
         Boundary value. If callable, call update(t) each time step.
     """
 
-    def __init__(self, V, location, *, coord=None, length=None, width=1e-10, value=0.0):
+    def __init__(self, V, location, *, coord=None, length=None, center=None, width=1e-10, value=0.0):
         self.V = V
         self.mesh = V.mesh
         self.width = float(width)
+        self.center = center
         self.length = length
 
         # Domain extents
@@ -40,6 +45,9 @@ class RowDirichletBC:
         xmid = 0.5 * (xmin + xmax)
         ymid = 0.5 * (ymin + ymax)
         half = None if length is None else 0.5 * length
+        
+        if (location in ['x', 'y']) and center is None:
+            self.center= xmid if location=='x' else ymid
 
         # Helper: centred-length mask along an axis array
         def centred_mask(axis_vals, center):
@@ -82,7 +90,7 @@ class RowDirichletBC:
             def pred(x):
                 return np.logical_and(
                     np.isclose(x[0], c, atol=self.width),
-                    centred_mask(x[1], ymid))
+                    centred_mask(x[1], self.center))
         elif location == "y":
             if coord is None:
                 raise ValueError("coord required when location='y'.")
@@ -90,7 +98,7 @@ class RowDirichletBC:
             def pred(x):
                 return np.logical_and(
                     np.isclose(x[1], c, atol=self.width),
-                    centred_mask(x[0], xmid))
+                    centred_mask(x[0], self.center))
         else:
             raise ValueError("Unknown location keyword.")
 
