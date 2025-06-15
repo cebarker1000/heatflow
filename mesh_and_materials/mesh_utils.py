@@ -3,13 +3,17 @@ import gmsh
 # Optional MPI support – falls back to serial if mpi4py is unavailable
 try:
     from mpi4py import MPI  # noqa: F401
+
     COMM = MPI.COMM_WORLD
 except (ModuleNotFoundError, ImportError):
+
     class _SerialComm:
         rank = 0
         size = 1
+
         def Barrier(self):
             pass
+
     COMM = _SerialComm()
 
 
@@ -30,11 +34,13 @@ class Material:
             Dictionary mapping property names to values.
     """
 
-    def __init__(self, name, boundaries, properties=None, mesh_size=None, material_tag=None):
+    def __init__(
+        self, name, boundaries, properties=None, mesh_size=None, material_tag=None
+    ):
         if not isinstance(name, str):
             raise TypeError(f"name must be a string, got {type(name)}")
         self.name = name
-        if not hasattr(boundaries, '__len__') or len(boundaries) != 4:
+        if not hasattr(boundaries, "__len__") or len(boundaries) != 4:
             raise ValueError("boundaries must be [xmin,xmax,ymin,ymax]")
         xmin, xmax, ymin, ymax = boundaries
         if xmin >= xmax or ymin >= ymax:
@@ -51,7 +57,9 @@ class Material:
         return xmin <= x <= xmax and ymin <= y <= ymax
 
     def __repr__(self):
-        return f"Material({self.name!r}, bounds={self.boundaries}, size={self.mesh_size})"
+        return (
+            f"Material({self.name!r}, bounds={self.boundaries}, size={self.mesh_size})"
+        )
 
 
 class Mesh:
@@ -68,9 +76,11 @@ class Mesh:
 
     # Construction ---------------------------------------------------------------------------
     def __init__(self, name, boundaries, materials, default_mesh_size=0.1):
-        if not isinstance(name, str): raise TypeError("name must be a string")
+        if not isinstance(name, str):
+            raise TypeError("name must be a string")
         self.name = name
-        if len(boundaries) != 4: raise ValueError("boundaries must be 4 floats")
+        if len(boundaries) != 4:
+            raise ValueError("boundaries must be 4 floats")
         self.boundaries = [float(b) for b in boundaries]
         self.materials = list(materials)
         self.default_mesh_size = float(default_mesh_size)
@@ -84,11 +94,11 @@ class Mesh:
         if COMM.rank == 0:
             # 1) create base rectangle and material rectangles
             xmin, xmax, ymin, ymax = self.boundaries
-            base = gmsh.model.occ.addRectangle(xmin, ymin, 0, xmax-xmin, ymax-ymin)
+            base = gmsh.model.occ.addRectangle(xmin, ymin, 0, xmax - xmin, ymax - ymin)
             surfaces = [(2, base)]
             for mat in self.materials:
                 bx, BX, by, BY = mat.boundaries
-                tag = gmsh.model.occ.addRectangle(bx, by, 0, BX-bx, BY-by)
+                tag = gmsh.model.occ.addRectangle(bx, by, 0, BX - bx, BY - by)
                 mat._tag = tag
                 surfaces.append((2, tag))
 
@@ -99,32 +109,38 @@ class Mesh:
             # 3) create a Box field per material
             box_fields = []
             for mat in self.materials:
-                bf = gmsh.model.mesh.field.add('Box')
+                bf = gmsh.model.mesh.field.add("Box")
                 bx, BX, by, BY = mat.boundaries
-                gmsh.model.mesh.field.setNumber(bf, 'XMin', bx)
-                gmsh.model.mesh.field.setNumber(bf, 'XMax', BX)
-                gmsh.model.mesh.field.setNumber(bf, 'YMin', by)
-                gmsh.model.mesh.field.setNumber(bf, 'YMax', BY)
-                size_in = mat.mesh_size if mat.mesh_size is not None else self.default_mesh_size
-                gmsh.model.mesh.field.setNumber(bf, 'VIn', size_in)
-                gmsh.model.mesh.field.setNumber(bf, 'VOut', self.default_mesh_size)
+                gmsh.model.mesh.field.setNumber(bf, "XMin", bx)
+                gmsh.model.mesh.field.setNumber(bf, "XMax", BX)
+                gmsh.model.mesh.field.setNumber(bf, "YMin", by)
+                gmsh.model.mesh.field.setNumber(bf, "YMax", BY)
+                size_in = (
+                    mat.mesh_size
+                    if mat.mesh_size is not None
+                    else self.default_mesh_size
+                )
+                gmsh.model.mesh.field.setNumber(bf, "VIn", size_in)
+                gmsh.model.mesh.field.setNumber(bf, "VOut", self.default_mesh_size)
                 box_fields.append(bf)
 
             # 4) combine via Min field, set as background
             if box_fields:
-                minf = gmsh.model.mesh.field.add('Min')
-                gmsh.model.mesh.field.setNumbers(minf, 'FieldsList', box_fields)
+                minf = gmsh.model.mesh.field.add("Min")
+                gmsh.model.mesh.field.setNumbers(minf, "FieldsList", box_fields)
                 gmsh.model.mesh.field.setAsBackgroundMesh(minf)
 
             # 5) assign physical groups by centroid classification
             all_surfs = gmsh.model.occ.getEntities(2)
             bg_tags = []
             for dim, tag in all_surfs:
-                x,y,z = gmsh.model.occ.getCenterOfMass(dim, tag)
+                x, y, z = gmsh.model.occ.getCenterOfMass(dim, tag)
                 assigned = False
                 for mat in self.materials:
                     if mat.contains(x, y):
-                        pg = self.material_tags.get(mat.name) or gmsh.model.addPhysicalGroup(2, [tag])
+                        pg = self.material_tags.get(
+                            mat.name
+                        ) or gmsh.model.addPhysicalGroup(2, [tag])
                         gmsh.model.setPhysicalName(2, pg, mat.name)
                         self.material_tags[mat.name] = pg
                         assigned = True
@@ -133,8 +149,8 @@ class Mesh:
                     bg_tags.append(tag)
             # background group
             pg_bg = gmsh.model.addPhysicalGroup(2, bg_tags)
-            gmsh.model.setPhysicalName(2, pg_bg, 'background')
-            self.material_tags['background'] = pg_bg
+            gmsh.model.setPhysicalName(2, pg_bg, "background")
+            self.material_tags["background"] = pg_bg
 
         COMM.Barrier()
         gmsh.model.mesh.generate(2)
@@ -146,7 +162,7 @@ class Mesh:
         """Convert *in‑memory* Gmsh model to a DOLFINx mesh (no files).
 
         Returns:
-        
+
         mesh: dolfinx.mesh.Mesh
         cell_tags: dolfinx.mesh.MeshTags
         facet_tags: dolfinx.mesh.MeshTags
@@ -155,8 +171,9 @@ class Mesh:
             raise RuntimeError("Mesh not built – call build_mesh() first.")
 
         from dolfinx.io import gmshio  # local import to avoid hard dependency if unused
+
         return gmshio.model_to_mesh(gmsh.model, comm, rank, gdim)
-    
+
     @staticmethod
     def msh_to_dolfinx(filename: str, *, comm=COMM, gdim: int = 2, rank: int = 0):
         """Load a ``.msh`` file *filename* and convert to DOLFINx mesh.
@@ -166,6 +183,7 @@ class Mesh:
         gmsh.initialize()
         gmsh.open(filename)
         from dolfinx.io import gmshio
+
         mesh, cell_tags, facet_tags = gmshio.model_to_mesh(gmsh.model, comm, rank, gdim)
         gmsh.finalize()
         return mesh, cell_tags, facet_tags
@@ -176,4 +194,3 @@ class Mesh:
         if self.mesh is None:
             raise RuntimeError("Mesh not built – call build_mesh() first.")
         self.mesh.write(filename)
-

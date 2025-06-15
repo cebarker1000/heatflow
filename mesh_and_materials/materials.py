@@ -15,11 +15,13 @@ class Material:
             Dictionary mapping property names to values.
     """
 
-    def __init__(self, name, boundaries, properties=None, mesh_size=None, material_tag=None):
+    def __init__(
+        self, name, boundaries, properties=None, mesh_size=None, material_tag=None
+    ):
         if not isinstance(name, str):
             raise TypeError(f"name must be a string, got {type(name)}")
         self.name = name
-        if not hasattr(boundaries, '__len__') or len(boundaries) != 4:
+        if not hasattr(boundaries, "__len__") or len(boundaries) != 4:
             raise ValueError("boundaries must be [xmin,xmax,ymin,ymax]")
         xmin, xmax, ymin, ymax = boundaries
         if xmin >= xmax or ymin >= ymax:
@@ -36,4 +38,6 @@ class Material:
         return xmin <= x <= xmax and ymin <= y <= ymax
 
     def __repr__(self):
-        return f"Material({self.name!r}, bounds={self.boundaries}, size={self.mesh_size})"
+        return (
+            f"Material({self.name!r}, bounds={self.boundaries}, size={self.mesh_size})"
+        )
