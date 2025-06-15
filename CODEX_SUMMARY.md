@@ -1,6 +1,21 @@
 # Codebase Summary
 
-Generated 2025-06-15T15:51:51.098396
+Generated 2025-06-15T16:26:20.078017
+
+## analysis_and_visualization/__init__.py
+
+
+## analysis_and_visualization/plotting.py
+
+* **Imports:**
+  - import os
+  - import numpy as np
+  - import matplotlib.pyplot as plt
+  - from matplotlib import colors
+  - from io_utilities.xdmf_extract import extract_point_timeseries_xdmf
+* **Functions:**
+  - line_plot(xdmf_path, axis='x', coord=0.0, line_range, samples=200, time=None, time_index=None, function_name='Temperature (K)') - Plot solution values along a line at a specific time.
+  - line_difference_colormap(xdmf_a, xdmf_b, axis='x', coord=0.0, line_range, samples=200, function_name='Temperature (K)', label_a='sim A', label_b='sim B') - Plot temperature differences between two simulations along a line.
 
 ## dirichlet_bc/bc.py
 
