@@ -3,16 +3,20 @@ import gmsh
 # Optional MPI support – falls back to serial if mpi4py is unavailable
 try:
     from mpi4py import MPI  # noqa: F401
+
     COMM = MPI.COMM_WORLD
 except (ModuleNotFoundError, ImportError):
+
     class _SerialComm:
         rank = 0
         size = 1
+
         def Barrier(self):
             pass
+
     COMM = _SerialComm()
 
-SCALE = 1e6          # 1 model unit = 1 µm
+SCALE = 1e6  # 1 model unit = 1 µm
 
 
 class Mesh:
@@ -29,9 +33,11 @@ class Mesh:
 
     # Construction ---------------------------------------------------------------------------
     def __init__(self, name, boundaries, materials):
-        if not isinstance(name, str): raise TypeError("name must be a string")
+        if not isinstance(name, str):
+            raise TypeError("name must be a string")
         self.name = name
-        if len(boundaries) != 4: raise ValueError("boundaries must be 4 floats")
+        if len(boundaries) != 4:
+            raise ValueError("boundaries must be 4 floats")
         self.boundaries = [float(b) for b in boundaries]
         self.materials = list(materials)
         self.material_tags = {}
@@ -68,8 +74,7 @@ class Mesh:
                     f"{m.name}: invalid rectangle "
                     f"(bx,BX,by,BY) = {m.boundaries} → dx={dx}, dy={dy}"
                 )
-        print('no mesh errors found')
-
+        print("no mesh errors found")
 
     # Mesh Generation ------------------------------------------------------------------------
     def build_mesh(self):
@@ -93,10 +98,10 @@ class Mesh:
             # 1) create geometry primitives for each material rectangle
             for mat in self.materials:
                 bx, BX, by, BY = mat.boundaries
-                pa = gmsh.model.geo.addPoint(bx,  by,  0.0)
-                pb = gmsh.model.geo.addPoint(BX, by,  0.0)
+                pa = gmsh.model.geo.addPoint(bx, by, 0.0)
+                pb = gmsh.model.geo.addPoint(BX, by, 0.0)
                 pc = gmsh.model.geo.addPoint(BX, BY, 0.0)
-                pd = gmsh.model.geo.addPoint(bx,  BY, 0.0)
+                pd = gmsh.model.geo.addPoint(bx, BY, 0.0)
                 la = gmsh.model.geo.addLine(pa, pb)
                 lb = gmsh.model.geo.addLine(pb, pc)
                 lc = gmsh.model.geo.addLine(pc, pd)
@@ -118,21 +123,21 @@ class Mesh:
                 mat.tag = pg
                 self.material_tags[mat.name] = pg
 
-                bf = gmsh.model.mesh.field.add('Box')
+                bf = gmsh.model.mesh.field.add("Box")
                 bx, BX, by, BY = mat.boundaries
-                gmsh.model.mesh.field.setNumber(bf, 'XMin', bx)
-                gmsh.model.mesh.field.setNumber(bf, 'XMax', BX)
-                gmsh.model.mesh.field.setNumber(bf, 'YMin', by)
-                gmsh.model.mesh.field.setNumber(bf, 'YMax', BY)
+                gmsh.model.mesh.field.setNumber(bf, "XMin", bx)
+                gmsh.model.mesh.field.setNumber(bf, "XMax", BX)
+                gmsh.model.mesh.field.setNumber(bf, "YMin", by)
+                gmsh.model.mesh.field.setNumber(bf, "YMax", BY)
                 # refine inside to material size, coarse outside to default_size
-                gmsh.model.mesh.field.setNumber(bf, 'VIn', mat.mesh_size)
-                gmsh.model.mesh.field.setNumber(bf, 'VOut', default_size)
+                gmsh.model.mesh.field.setNumber(bf, "VIn", mat.mesh_size)
+                gmsh.model.mesh.field.setNumber(bf, "VOut", default_size)
                 box_fields.append(bf)
 
             # 3) combine fields via Min and set as background
             if box_fields:
-                minf = gmsh.model.mesh.field.add('Min')
-                gmsh.model.mesh.field.setNumbers(minf, 'FieldsList', box_fields)
+                minf = gmsh.model.mesh.field.add("Min")
+                gmsh.model.mesh.field.setNumbers(minf, "FieldsList", box_fields)
                 gmsh.model.mesh.field.setAsBackgroundMesh(minf)
 
         COMM.Barrier()
@@ -140,16 +145,12 @@ class Mesh:
         self.mesh = gmsh
         COMM.Barrier()
 
-
-
-
-
     # FEniCs Interoperability ------------------------------------------------------------
     def to_dolfinx(self, *, comm=COMM, gdim: int = 2, rank: int = 0):
         """Convert *in‑memory* Gmsh model to a DOLFINx mesh (no files).
 
         Returns:
-        
+
         mesh: dolfinx.mesh.Mesh
         cell_tags: dolfinx.mesh.MeshTags
         facet_tags: dolfinx.mesh.MeshTags
@@ -158,8 +159,9 @@ class Mesh:
             raise RuntimeError("Mesh not built – call build_mesh() first.")
 
         from dolfinx.io import gmshio  # local import to avoid hard dependency if unused
+
         return gmshio.model_to_mesh(gmsh.model, comm, rank, gdim)
-    
+
     @staticmethod
     def msh_to_dolfinx(filename: str, *, comm=COMM, gdim: int = 2, rank: int = 0):
         """Load a ``.msh`` file *filename* and convert to DOLFINx mesh.
@@ -169,6 +171,7 @@ class Mesh:
         gmsh.initialize()
         gmsh.open(filename)
         from dolfinx.io import gmshio
+
         mesh, cell_tags, facet_tags = gmshio.model_to_mesh(gmsh.model, comm, rank, gdim)
         gmsh.finalize()
         return mesh, cell_tags, facet_tags

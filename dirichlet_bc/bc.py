@@ -19,7 +19,7 @@ class RowDirichletBC:
         Required for inner-line cases (location "x" or "y"). Ignored otherwise.
     center   : float, optional
         Sets the coordinate of the center of the BC. If location is 'x' or 'y'
-        and center is None, sets the center of the BC to the middle of the x/y 
+        and center is None, sets the center of the BC to the middle of the x/y
         extent of the simulation.
     length   : float, optional
         If provided, only dofs whose **orthogonal** coordinate lies within
@@ -31,7 +31,17 @@ class RowDirichletBC:
         Boundary value. If callable, call update(t) each time step.
     """
 
-    def __init__(self, V, location, *, coord=None, length=None, center=None, width=1e-10, value=0.0):
+    def __init__(
+        self,
+        V,
+        location,
+        *,
+        coord=None,
+        length=None,
+        center=None,
+        width=1e-10,
+        value=0.0,
+    ):
         self.V = V
         self.mesh = V.mesh
         self.width = float(width)
@@ -45,9 +55,9 @@ class RowDirichletBC:
         xmid = 0.5 * (xmin + xmax)
         ymid = 0.5 * (ymin + ymax)
         half = None if length is None else 0.5 * length
-        
-        if (location in ['x', 'y']) and center is None:
-            self.center= xmid if location=='x' else ymid
+
+        if (location in ["x", "y"]) and center is None:
+            self.center = xmid if location == "x" else ymid
 
         # Helper: centred-length mask along an axis array
         def centred_mask(axis_vals, center):
@@ -57,48 +67,72 @@ class RowDirichletBC:
 
         # Build vectorised predicate ------------------------------------------------
         if location == "left":
+
             def pred(x):
                 return np.logical_and(
-                    np.isclose(x[0], xmin, atol=self.width),
-                    centred_mask(x[1], ymid))
+                    np.isclose(x[0], xmin, atol=self.width), centred_mask(x[1], ymid)
+                )
+
         elif location == "right":
+
             def pred(x):
                 return np.logical_and(
-                    np.isclose(x[0], xmax, atol=self.width),
-                    centred_mask(x[1], ymid))
+                    np.isclose(x[0], xmax, atol=self.width), centred_mask(x[1], ymid)
+                )
+
         elif location == "bottom":
+
             def pred(x):
                 return np.logical_and(
-                    np.isclose(x[1], ymin, atol=self.width),
-                    centred_mask(x[0], xmid))
+                    np.isclose(x[1], ymin, atol=self.width), centred_mask(x[0], xmid)
+                )
+
         elif location == "top":
+
             def pred(x):
                 return np.logical_and(
-                    np.isclose(x[1], ymax, atol=self.width),
-                    centred_mask(x[0], xmid))
+                    np.isclose(x[1], ymax, atol=self.width), centred_mask(x[0], xmid)
+                )
+
         elif location == "outer":
+
             def pred(x):
-                mask_left = np.logical_and(np.isclose(x[0], xmin, atol=self.width), centred_mask(x[1], ymid))
-                mask_right = np.logical_and(np.isclose(x[0], xmax, atol=self.width), centred_mask(x[1], ymid))
-                mask_bottom = np.logical_and(np.isclose(x[1], ymin, atol=self.width), centred_mask(x[0], xmid))
-                mask_top = np.logical_and(np.isclose(x[1], ymax, atol=self.width), centred_mask(x[0], xmid))
+                mask_left = np.logical_and(
+                    np.isclose(x[0], xmin, atol=self.width), centred_mask(x[1], ymid)
+                )
+                mask_right = np.logical_and(
+                    np.isclose(x[0], xmax, atol=self.width), centred_mask(x[1], ymid)
+                )
+                mask_bottom = np.logical_and(
+                    np.isclose(x[1], ymin, atol=self.width), centred_mask(x[0], xmid)
+                )
+                mask_top = np.logical_and(
+                    np.isclose(x[1], ymax, atol=self.width), centred_mask(x[0], xmid)
+                )
                 return mask_left | mask_right | mask_bottom | mask_top
+
         elif location == "x":
             if coord is None:
                 raise ValueError("coord required when location='x'.")
             c = float(coord)
+
             def pred(x):
                 return np.logical_and(
                     np.isclose(x[0], c, atol=self.width),
-                    centred_mask(x[1], self.center))
+                    centred_mask(x[1], self.center),
+                )
+
         elif location == "y":
             if coord is None:
                 raise ValueError("coord required when location='y'.")
             c = float(coord)
+
             def pred(x):
                 return np.logical_and(
                     np.isclose(x[1], c, atol=self.width),
-                    centred_mask(x[0], self.center))
+                    centred_mask(x[0], self.center),
+                )
+
         else:
             raise ValueError("Unknown location keyword.")
 
@@ -129,10 +163,10 @@ class RowDirichletBC:
 
     def update(self, t):
         # drop z, compute vals
-        xy   = self.dof_coords[:, :2]
-        vals = np.array([ self._value_callable(x, y, t)
-                        for x, y in xy ],
-                        dtype=PETSc.ScalarType)
+        xy = self.dof_coords[:, :2]
+        vals = np.array(
+            [self._value_callable(x, y, t) for x, y in xy], dtype=PETSc.ScalarType
+        )
 
         # write into function
         self._g.x.array[self.row_dofs] = vals
@@ -143,10 +177,12 @@ class RowDirichletBC:
     # ------------------------------------------------------------------
     @staticmethod
     def constant(V, location, value, *, coord=None, length=None, width=1e-12):
-        bc = RowDirichletBC(V, location, coord=coord, length=length, width=width, value=value)
+        bc = RowDirichletBC(
+            V, location, coord=coord, length=length, width=width, value=value
+        )
         bc.update(0.0)
         return bc
-    
+
     # -------------------------------------------------------------------
     # Convenience function to examine BC coords
     # -------------------------------------------------------------------
@@ -168,11 +204,12 @@ class RowDirichletBC:
             if not isinstance(bc, RowDirichletBC):
                 continue
 
-            xy = bc.dof_coords              # (n, 3) array, already stored
+            xy = bc.dof_coords  # (n, 3) array, already stored
             x_min, x_max = xy[:, 0].min(), xy[:, 0].max()
             y_min, y_max = xy[:, 1].min(), xy[:, 1].max()
-            print(f"{label} #{k}: "
+            print(
+                f"{label} #{k}: "
                 f"x in [{x_min:.3e}, {x_max:.3e}]  "
                 f"y in [{y_min:.3e}, {y_max:.3e}]  "
-                f"(n = {xy.shape[0]} DOFs)")
-
+                f"(n = {xy.shape[0]} DOFs)"
+            )

@@ -26,8 +26,9 @@ class Space:
     # ------------------------------------------------------------------
     # Construction
     # ------------------------------------------------------------------
-    def __init__(self, mesh_and_tags, V_family="Lagrange", V_degree=1,
-                 Q_family="DG", Q_degree=0):
+    def __init__(
+        self, mesh_and_tags, V_family="Lagrange", V_degree=1, Q_family="DG", Q_degree=0
+    ):
         """Initialize the Space by creating function spaces on the given mesh or mesh+tags tuple.
 
         Parameters:
@@ -81,10 +82,7 @@ class Space:
             rho_c * u * v * ufl.dx
             + dt * kappa * ufl.dot(ufl.grad(u), ufl.grad(v)) * ufl.dx
         )
-        L = (
-            rho_c * u_n * v * ufl.dx
-            + dt * f * v * ufl.dx
-        )
+        L = rho_c * u_n * v * ufl.dx + dt * f * v * ufl.dx
 
         self.a_form = fem.form(a)
         self.L_form = fem.form(L)
@@ -111,8 +109,7 @@ class Space:
         """
         b = fem.petsc.assemble_vector(self.L_form)
         fem.petsc.apply_lifting(b, [self.a_form], [bcs])
-        b.ghostUpdate(addv=PETSc.InsertMode.ADD_VALUES,
-                      mode=PETSc.ScatterMode.REVERSE)
+        b.ghostUpdate(addv=PETSc.InsertMode.ADD_VALUES, mode=PETSc.ScatterMode.REVERSE)
         fem.petsc.set_bc(b, bcs)
         return b
 
@@ -177,7 +174,9 @@ class Space:
         f_ic.name = name
 
         if isinstance(init, (int, float, np.number)):
-            f_ic.interpolate(lambda x: np.full(x.shape[1], init, dtype=PETSc.ScalarType))
+            f_ic.interpolate(
+                lambda x: np.full(x.shape[1], init, dtype=PETSc.ScalarType)
+            )
             return f_ic
 
         if callable(init):
@@ -204,7 +203,11 @@ class Space:
 
         Returns a function matching interpolate's signature.
         """
+
         def wrapper(points):
             xx, yy = points[0], points[1]
-            return np.array([func(xi, yi) for xi, yi in zip(xx, yy)], dtype=PETSc.ScalarType)
+            return np.array(
+                [func(xi, yi) for xi, yi in zip(xx, yy)], dtype=PETSc.ScalarType
+            )
+
         return wrapper

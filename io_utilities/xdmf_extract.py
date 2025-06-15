@@ -3,11 +3,12 @@ import numpy as np
 from scipy.spatial import cKDTree
 from scipy.interpolate import griddata
 
+
 def extract_point_timeseries_xdmf(
     xdmf_path: str,
     function_name: str,
     query_points: list[tuple[float, float]],
-    method: str = "nearest"
+    method: str = "nearest",
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Extracts time-series of a nodal field from an XDMF time-series file via meshio.
@@ -26,9 +27,9 @@ def extract_point_timeseries_xdmf(
     # 1) open with meshio
     with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
         # Read the static mesh once
-        points, _ = reader.read_points_cells()     # (N_pts, 3)
-        pts2d = points[:, :2]                      # drop z if 2D
-        tree  = cKDTree(pts2d)
+        points, _ = reader.read_points_cells()  # (N_pts, 3)
+        pts2d = points[:, :2]  # drop z if 2D
+        tree = cKDTree(pts2d)
 
         n_pts = len(query_points)
         n_steps = reader.num_steps
@@ -39,7 +40,7 @@ def extract_point_timeseries_xdmf(
         for i in range(n_steps):
             t, point_data, _ = reader.read_data(i)
             times[i] = t
-            vals     = point_data[function_name]   # shape (N_pts,)
+            vals = point_data[function_name]  # shape (N_pts,)
 
             if method == "nearest":
                 # pick nearest mesh-vertex
