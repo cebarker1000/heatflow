@@ -14,4 +14,6 @@ dependencies:
   - scipy
   - meshio
   - gmsh
+  - matplotlib
+  - ipywidgets
 prefix: /home/cebar/miniconda3/envs/fenicsx-env
