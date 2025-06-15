@@ -9,20 +9,24 @@ def extract_point_timeseries_xdmf(
     query_points: list[tuple[float, float]],
     method: str = "nearest"
 ) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Extracts time-series of a nodal field from an XDMF time-series file via meshio.
+    """Extract time-series of a nodal field from an XDMF time-series file using meshio.
 
-    Params:
-    xdmf_path      (str):   Path to your 'solution.xdmf' file.
-    function_name  (str):   The name of the field in your XDMF (e.g. "Temperature (K)").
-    query_points   (list):  [(x1,y1), (x2,y2), …] points to sample.
-    method         (str):   "nearest" (default) for nearest-vertex lookup,
-                           or "linear" for true barycentric interpolation.
+    Parameters
+    ----------
+    xdmf_path : str
+        Path to the ``solution.xdmf`` file.
+    function_name : str
+        Name of the field in the XDMF file (e.g. ``Temperature (K)``).
+    query_points : list[tuple[float, float]]
+        Points ``[(x1, y1), (x2, y2), ...]`` to sample.
+    method : str, optional
+        ``"nearest"`` (default) for nearest-vertex lookup or ``"linear"`` for barycentric interpolation.
 
-    Returns:
-    times          (np.ndarray): shape (Nsteps,) sorted time-values.
-    data           (np.ndarray): shape (n_points, Nsteps) sampled values.
-    """
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray]
+        Arrays ``(times, data)`` where ``times`` has shape ``(Nsteps,)`` and ``data`` has shape ``(n_points, Nsteps)``.
+"""
     # 1) open with meshio
     with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
         # Read the static mesh once
