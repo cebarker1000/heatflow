@@ -16,15 +16,20 @@ SCALE = 1e6          # 1 model unit = 1 µm
 
 
 class Mesh:
-    """
-    Stores and builds a gmsh mesh over a rectangular domain with multiple materials.
+    """Container for a gmsh mesh over a rectangular domain with multiple materials.
 
-    Attributes:
-        name (str): name of the mesh
-        boundaries (list): [xmin,xmax,ymin,ymax] of domain
-        materials (list[Material])
-        default_mesh_size (float)
-        material_tags (dict): maps name->physical group tag
+    Attributes
+    ----------
+    name : str
+        Name of the mesh.
+    boundaries : list[float]
+        Domain bounds ``[xmin, xmax, ymin, ymax]``.
+    materials : list[Material]
+        Collection of material regions.
+    default_mesh_size : float
+        Default mesh size used outside material regions.
+    material_tags : dict
+        Mapping of material names to physical group tags.
     """
 
     # Construction ---------------------------------------------------------------------------
@@ -39,11 +44,12 @@ class Mesh:
 
     # Mesh Validation ------------------------------------------------------------------------
     def _check_mesh(self, base_bounds):
-        """
-        Raise if:
-          1) base_bounds duplicates any material
-          2) two materials have identical bounds
-          3) any material has non-positive width/height
+        """Validate the mesh configuration.
+
+        Raises if:
+            1) ``base_bounds`` duplicates any material,
+            2) two materials have identical bounds, or
+            3) any material has non-positive width/height.
         """
         seen = {}
         bb = tuple(round(x, 12) for x in base_bounds)  # 1 pm precision
@@ -73,9 +79,11 @@ class Mesh:
 
     # Mesh Generation ------------------------------------------------------------------------
     def build_mesh(self):
-        """Build a 2-D mesh of perfectly touching rectangles—one per material—using the *geo* kernel.
-        No base surface; each material defines its own surface and physical tag. Mesh is refined inside each material
-        to `mesh_size` and coarser elsewhere to the maximum of all material sizes.
+        """Build a 2‑D mesh of touching rectangles—one per material—using the ``geo`` kernel.
+
+        Each material defines its own surface and physical tag. The mesh is refined
+        inside each material to ``mesh_size`` and is coarser elsewhere up to the
+        maximum of all material sizes.
         """
         # reset gmsh
         if gmsh.isInitialized():
@@ -146,13 +154,16 @@ class Mesh:
 
     # FEniCs Interoperability ------------------------------------------------------------
     def to_dolfinx(self, *, comm=COMM, gdim: int = 2, rank: int = 0):
-        """Convert *in‑memory* Gmsh model to a DOLFINx mesh (no files).
+        """Convert the in-memory gmsh model to a DOLFINx mesh.
 
-        Returns:
-        
-        mesh: dolfinx.mesh.Mesh
-        cell_tags: dolfinx.mesh.MeshTags
-        facet_tags: dolfinx.mesh.MeshTags
+        Returns
+        -------
+        dolfinx.mesh.Mesh
+            The converted mesh.
+        dolfinx.mesh.MeshTags
+            Cell markers associated with the mesh.
+        dolfinx.mesh.MeshTags
+            Facet markers associated with the mesh.
         """
         if self.mesh is None:
             raise RuntimeError("Mesh not built – call build_mesh() first.")
@@ -162,9 +173,10 @@ class Mesh:
     
     @staticmethod
     def msh_to_dolfinx(filename: str, *, comm=COMM, gdim: int = 2, rank: int = 0):
-        """Load a ``.msh`` file *filename* and convert to DOLFINx mesh.
+        """Load a ``.msh`` file and convert it to a DOLFINx mesh.
 
-        This is a convenience wrapper around gmsh.open + gmshio.model_to_mesh.
+        This is a convenience wrapper around ``gmsh.open`` and
+        :func:`gmshio.model_to_mesh`.
         """
         gmsh.initialize()
         gmsh.open(filename)
@@ -175,7 +187,7 @@ class Mesh:
 
     # I/O Helpers ------------------------------------------------------------------------
     def write(self, filename: str):
-        """Write the current Gmsh mesh to disk (e.g., ``.msh``)."""
+        """Write the current gmsh mesh to disk (e.g., as ``.msh``)."""
         if self.mesh is None:
             raise RuntimeError("Mesh not built – call build_mesh() first.")
         self.mesh.write(filename)

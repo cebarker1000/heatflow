@@ -1,18 +1,16 @@
 class Material:
-    """
-    A class to store materials within the mesh, incorporating their
-    boundaries, desired mesh fineness within the mesh, and any material
-    properties (kappa, rho, c_v, etc).
+    """Representation of a rectangular material region in the mesh.
 
-    Attributes:
-        name (str):
-            Unique name of the material.
-        boundaries (list of float):
-            [xmin, xmax, ymin, ymax] coordinates defining the rectangular region.
-        mesh_size (float):
-            Desired target mesh element size within this region.
-        properties (dict):
-            Dictionary mapping property names to values.
+    Attributes
+    ----------
+    name : str
+        Unique name of the material.
+    boundaries : list[float]
+        ``[xmin, xmax, ymin, ymax]`` coordinates defining the region.
+    mesh_size : float, optional
+        Desired target mesh element size within this region.
+    properties : dict
+        Dictionary mapping property names to values.
     """
 
     def __init__(self, name, boundaries, properties=None, mesh_size=None, material_tag=None):

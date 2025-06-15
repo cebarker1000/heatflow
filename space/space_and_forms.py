@@ -5,22 +5,28 @@ from petsc4py import PETSc
 
 
 class Space:
-    """High‑level wrapper for FEniCSx heat‑equation workspaces.
+    """High-level wrapper for FEniCSx heat-equation workspaces.
 
     The class owns the function spaces (CG for the solution, DG0 for material
-    data), builds variational forms for transient heat conduction, and
-    provides convenience helpers for:
+    data), builds variational forms for transient heat conduction and provides
+    convenience helpers for:
       - material-property assignment (piecewise constants on the DG0 space)
       - initial-condition construction
-      - system assembly (assemble_matrix / assemble_vector)
+      - system assembly (``assemble_matrix`` / ``assemble_vector``)
 
-    Parameters:
-        mesh_and_tags: Either a dolfinx.mesh.Mesh, or a tuple
-            (mesh, cell_tags, facet_tags) as returned by mesh generators.
-        V_family: String name of the finite element family for temperature (default 'Lagrange').
-        V_degree: Polynomial degree for the temperature space (default 1).
-        Q_family: String name of the finite element family for coefficients (default 'DG').
-        Q_degree: Polynomial degree for the coefficient space (default 0).
+    Parameters
+    ----------
+    mesh_and_tags : dolfinx.mesh.Mesh | tuple
+        Either a mesh alone or ``(mesh, cell_tags, facet_tags)`` as returned by
+        mesh generators.
+    V_family : str, optional
+        Finite element family for the temperature space (default ``"Lagrange"``).
+    V_degree : int, optional
+        Polynomial degree for the temperature space (default ``1``).
+    Q_family : str, optional
+        Finite element family for coefficient fields (default ``"DG"``).
+    Q_degree : int, optional
+        Polynomial degree for the coefficient space (default ``0``).
     """
 
     # ------------------------------------------------------------------
@@ -28,15 +34,21 @@ class Space:
     # ------------------------------------------------------------------
     def __init__(self, mesh_and_tags, V_family="Lagrange", V_degree=1,
                  Q_family="DG", Q_degree=0):
-        """Initialize the Space by creating function spaces on the given mesh or mesh+tags tuple.
+        """Initialize the space by creating function spaces on the provided mesh.
 
-        Parameters:
-            mesh_and_tags: Either a dolfinx.mesh.Mesh or a tuple
-                (mesh, cell_tags, facet_tags) returned by mesh generators.
-            V_family: Finite element family for temperature space.
-            V_degree: Polynomial degree for temperature space.
-            Q_family: Finite element family for coefficient space.
-            Q_degree: Polynomial degree for coefficient space.
+        Parameters
+        ----------
+        mesh_and_tags : dolfinx.mesh.Mesh | tuple
+            Either a mesh alone or ``(mesh, cell_tags, facet_tags)`` as returned
+            by mesh generators.
+        V_family : str, optional
+            Finite element family for the temperature space.
+        V_degree : int, optional
+            Polynomial degree for the temperature space.
+        Q_family : str, optional
+            Finite element family for the coefficient space.
+        Q_degree : int, optional
+            Polynomial degree for the coefficient space.
         """
         # Unpack mesh and optional tags
         if isinstance(mesh_and_tags, tuple) and len(mesh_and_tags) >= 1:
@@ -62,15 +74,23 @@ class Space:
     def build_variational_forms(self, rho_c, kappa, u_n, dt, f=None):
         """Assemble and store the bilinear and linear forms for the heat equation.
 
-        Parameters:
-            rho_c: Volumetric heat capacity field (Function or Constant).
-            kappa: Thermal conductivity field (Function or Constant).
-            u_n: Solution at the previous time step (Function).
-            dt: Time step size (float).
-            f: Source term (Function or Constant), defaults to zero.
+        Parameters
+        ----------
+        rho_c : fem.Function | fem.Constant
+            Volumetric heat capacity field.
+        kappa : fem.Function | fem.Constant
+            Thermal conductivity field.
+        u_n : fem.Function
+            Solution at the previous time step.
+        dt : float
+            Time step size.
+        f : fem.Function | fem.Constant, optional
+            Source term, defaults to zero.
 
-        Returns:
-            a_form, L_form: The assembled bilinear and linear forms.
+        Returns
+        -------
+        tuple
+            The assembled bilinear and linear forms ``(a_form, L_form)``.
         """
         u = ufl.TrialFunction(self.V)
         v = ufl.TestFunction(self.V)
@@ -94,20 +114,24 @@ class Space:
     # Assembly helpers
     # ------------------------------------------------------------------
     def assemble_matrix(self, bcs):
-        """Assemble and return the global matrix A for the bilinear form.
+        """Assemble and return the global matrix ``A`` for the bilinear form.
 
-        Parameters:
-            bcs: List of Dolfinx DirichletBC objects.
+        Parameters
+        ----------
+        bcs : list[fem.DirichletBC]
+            Dirichlet boundary conditions applied to the system.
         """
         A = fem.petsc.assemble_matrix(self.a_form, bcs=bcs)
         A.assemble()
         return A
 
     def assemble_vector(self, bcs):
-        """Assemble and return the global RHS vector b for the linear form.
+        """Assemble and return the global RHS vector ``b`` for the linear form.
 
-        Parameters:
-            bcs: List of Dolfinx DirichletBC objects.
+        Parameters
+        ----------
+        bcs : list[fem.DirichletBC]
+            Dirichlet boundary conditions applied to the system.
         """
         b = fem.petsc.assemble_vector(self.L_form)
         fem.petsc.apply_lifting(b, [self.a_form], [bcs])
@@ -120,14 +144,19 @@ class Space:
     # Material → DG0 helper
     # ------------------------------------------------------------------
     def assign_material_property(self, materials, property_name):
-        """Build a DG0 Function containing piecewise constants for a material property.
+        """Build a DG0 function containing piecewise constants for a material property.
 
-        Parameters:
-            materials: List of Material objects with .tag and .properties dict.
-            property_name: Name of the property to map.
+        Parameters
+        ----------
+        materials : list[Material]
+            Materials with ``.tag`` and ``.properties`` mappings.
+        property_name : str
+            Name of the property to map.
 
-        Returns:
-            A Dolfinx Function in Q with the property assigned per cell.
+        Returns
+        -------
+        fem.Function
+            Function in ``Q`` with the property assigned per cell.
         """
         if self.cell_tags is None:
             raise RuntimeError("cell_tags not present – cannot map materials.")
@@ -162,16 +191,19 @@ class Space:
     # Initial condition helper
     # ------------------------------------------------------------------
     def initial_condition(self, init, *, name="u0"):
-        """Create an initial-condition Function in V from various inputs.
+        """Create an initial-condition function in ``V`` from various inputs.
 
-        Parameters:
-            init: float/int for constant, \
-                  callable f(x,y) for pointwise, \
-                  or array-like of DOF values.
-            name: Optional function name (default 'u0').
+        Parameters
+        ----------
+        init : float | int | callable | array_like
+            Constant value, callable ``f(x, y)`` or array of DOF values.
+        name : str, optional
+            Optional function name (default ``"u0"``).
 
-        Returns:
-            A Dolfinx Function populated with the initial data.
+        Returns
+        -------
+        fem.Function
+            Function populated with the initial data.
         """
         f_ic = fem.Function(self.V)
         f_ic.name = name
@@ -200,9 +232,12 @@ class Space:
     # ------------------------------------------------------------------
     @staticmethod
     def vectorize_callable(func):
-        """Wrap a scalar function func(x,y) so it accepts point arrays.
+        """Wrap a scalar function ``func(x, y)`` so it accepts point arrays.
 
-        Returns a function matching interpolate's signature.
+        Returns
+        -------
+        callable
+            Function matching :meth:`interpolate`'s signature.
         """
         def wrapper(points):
             xx, yy = points[0], points[1]

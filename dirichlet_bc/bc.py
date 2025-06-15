@@ -12,23 +12,21 @@ class RowDirichletBC:
 
     Parameters
     ----------
-    V        : FunctionSpace on which the BC acts (typically CG space)
+    V : fem.FunctionSpace
+        Function space on which the BC acts (typically CG space).
     location : str
         "left", "right", "bottom", "top", "outer", "x", or "y".
-    coord    : float, optional
+    coord : float, optional
         Required for inner-line cases (location "x" or "y"). Ignored otherwise.
-    center   : float, optional
-        Sets the coordinate of the center of the BC. If location is 'x' or 'y'
-        and center is None, sets the center of the BC to the middle of the x/y 
-        extent of the simulation.
-    length   : float, optional
-        If provided, only dofs whose **orthogonal** coordinate lies within
-        ±length/2 of the domain midpoint are clamped, keeping the patch centred.
-        When None (default) the entire row is clamped.
-    width    : float, optional
-        Geometric tolerance when comparing coordinates (default 1e‑12).
-    value    : float | callable(x,y,t) -> scalar, optional
-        Boundary value. If callable, call update(t) each time step.
+    center : float, optional
+        Coordinate of the center of the BC. If ``location`` is ``"x"`` or ``"y"``
+        and ``center`` is ``None``, the BC is centered in the middle of the domain.
+    length : float, optional
+        When provided, only DOFs within ``±length/2`` of the midpoint are clamped.
+    width : float, optional
+        Geometric tolerance when comparing coordinates (default ``1e-12``).
+    value : float | callable(x, y, t) -> scalar, optional
+        Boundary value. If callable, call :meth:`update` each time step.
     """
 
     def __init__(self, V, location, *, coord=None, length=None, center=None, width=1e-10, value=0.0):
@@ -153,14 +151,13 @@ class RowDirichletBC:
 
     @staticmethod
     def describe_row_bcs(bc_list, *, label="Row BC"):
-        """
-        Print coordinate bounds for every RowDirichletBC in bc_list.
+        """Print coordinate bounds for every ``RowDirichletBC`` in ``bc_list``.
 
         Parameters
         ----------
         bc_list : sequence of RowDirichletBC | fem.DirichletBC
             Mix-and-match is fine; non-Row objects are skipped.
-        label   : str
+        label : str
             Prefix for each line of output (purely cosmetic).
         """
         for k, bc in enumerate(bc_list):
