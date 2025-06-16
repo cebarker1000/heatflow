@@ -185,6 +185,7 @@ class Mesh:
         gmsh.finalize()
         return mesh, cell_tags, facet_tags
 
+
     # I/O Helpers ------------------------------------------------------------------------
     def write(self, filename: str):
         """Write the current gmsh mesh to disk (e.g., as ``.msh``)."""

@@ -68,6 +68,9 @@ class Space:
         self.a_form = None
         self.L_form = None
 
+        self.a_form_steady = None
+        self.L_form_steady = None
+
     # ------------------------------------------------------------------
     # Variational forms
     # ------------------------------------------------------------------
@@ -109,6 +112,38 @@ class Space:
         self.a_form = fem.form(a)
         self.L_form = fem.form(L)
         return self.a_form, self.L_form
+    
+    def build_steady_state_variational_forms(self, kappa, f=None):
+        """Assemble and store the bilinear and linear forms for the steady-state heat equation.
+
+        Parameters
+        ----------
+        kappa : fem.Function | fem.Constant
+            Thermal conductivity field.
+        f : fem.Function | fem.Constant, optional
+            Source term, defaults to zero.
+
+        Returns
+        -------
+        tuple
+            The assembled bilinear and linear forms ``(a_form, L_form)``.
+        """
+        # Define trial and test functions
+        u = ufl.TrialFunction(self.V)
+        v = ufl.TestFunction(self.V)
+
+        # Default to zero source if none provided
+        if f is None:
+            f = fem.Constant(self.mesh, PETSc.ScalarType(0))
+
+        # Steady-state variational forms: -div(kappa * grad(u)) = f
+        a = kappa * ufl.dot(ufl.grad(u), ufl.grad(v)) * ufl.dx
+        L = f * v * ufl.dx
+
+        # Store forms for later assembly
+        self.a_form_steady = fem.form(a)
+        self.L_form_steady = fem.form(L)
+        return self.a_form_steady, self.L_form_steady
 
     # ------------------------------------------------------------------
     # Assembly helpers
