@@ -74,7 +74,7 @@ class Space:
     # ------------------------------------------------------------------
     # Variational forms
     # ------------------------------------------------------------------
-    def build_variational_forms(self, rho_c, kappa, u_n, dt, f=None):
+    def build_variational_forms(self, rho_c, kappa, u_n, dt, r0, f=None):
         """Assemble and store the bilinear and linear forms for the heat equation.
 
         Parameters
@@ -95,18 +95,21 @@ class Space:
         tuple
             The assembled bilinear and linear forms ``(a_form, L_form)``.
         """
+        x = ufl.SpatialCoordinate(self.mesh)
+        r = ufl.sqrt((x[1]-r0)**2)
+
         u = ufl.TrialFunction(self.V)
         v = ufl.TestFunction(self.V)
         if f is None:
             f = fem.Constant(self.mesh, PETSc.ScalarType(0))
 
         a = (
-            rho_c * u * v * ufl.dx
-            + dt * kappa * ufl.dot(ufl.grad(u), ufl.grad(v)) * ufl.dx
+            rho_c * u * v *  r * ufl.dx
+            + dt * kappa * ufl.dot(ufl.grad(u), ufl.grad(v)) *  r * ufl.dx
         )
         L = (
-            rho_c * u_n * v * ufl.dx
-            + dt * f * v * ufl.dx
+            rho_c * u_n * v *  r * ufl.dx
+            + dt * f * v * r *  ufl.dx
         )
 
         self.a_form = fem.form(a)
