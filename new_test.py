@@ -1,14 +1,13 @@
 import run_with_diamond as run
 import yaml
 import os
-import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+import analysis_utils as au
 
 # Load the configuration
 with open('simulation_template.yaml', 'r') as f:
     cfg = yaml.safe_load(f)
-
 
 # Extract parameters from config
 r_sample = float(cfg['mats']['p_sample']['r'])
@@ -48,59 +47,52 @@ run.run_simulation(
 
 print("Simulation completed! Check outputs/test1/ for results.")
 
-# Plot the normalized temperature curves
-def plot_normalized_temperature_curves():
-    """Plot normalized temperature curves for pside and oside watcher points."""
-    
-    # Load simulation watcher data
-    watcher_csv_path = 'outputs/test1/watcher_points.csv'
-    if not os.path.exists(watcher_csv_path):
-        print(f"Warning: Watcher data file not found at {watcher_csv_path}")
-        return
+# Load simulation watcher data
+watcher_csv_path = 'outputs/test1/watcher_points.csv'
+if not os.path.exists(watcher_csv_path):
+    print(f"Warning: Watcher data file not found at {watcher_csv_path}")
+else:
     df_sim = pd.read_csv(watcher_csv_path)
-
-    # Normalize simulation data to simulated pside
-    sim_pside_min = df_sim['pside'].min()
-    sim_pside_max = df_sim['pside'].max()
-    df_sim['pside_normed'] = (df_sim['pside'] - df_sim['pside'].iloc[0]) / (sim_pside_max - sim_pside_min)
-    df_sim['oside_normed'] = (df_sim['oside'] - df_sim['oside'].iloc[0]) / (sim_pside_max - sim_pside_min)
-
+    
     # Load experimental data
     df_exp = pd.read_csv('experimental_data/heat_data.csv')
-    df_exp['time'] = df_exp['time']
-    exp_pside_min = df_exp['temp'].min()
-    exp_pside_max = df_exp['temp'].max()
-
-    # Downshift experimental oside to start from ic_temp
+    
+    # Normalize simulation data
+    sim_pside_normed = (df_sim['pside'] - df_sim['pside'].iloc[0]) / (df_sim['pside'].max() - df_sim['pside'].min())
+    sim_oside_normed = (df_sim['oside'] - df_sim['oside'].iloc[0]) / (df_sim['pside'].max() - df_sim['pside'].min())
+    
+    # Normalize experimental data
+    exp_pside_normed = (df_exp['temp'] - df_exp['temp'].iloc[0]) / (df_exp['temp'].max() - df_exp['temp'].min())
+    
+    # Downshift experimental oside to start from ic_temp and normalize
     ic_temp = cfg['heating']['ic_temp']
     oside_initial = df_exp['oside'].iloc[0]
-    df_exp['oside'] = df_exp['oside'] - oside_initial + ic_temp
-
-    df_exp['pside_normed'] = (df_exp['temp'] - df_exp['temp'].iloc[0]) / (exp_pside_max - exp_pside_min)
-    df_exp['oside_normed'] = (df_exp['oside'] - df_exp['oside'].iloc[0]) / (exp_pside_max - exp_pside_min)
-
-    # Plot
-    plt.figure(figsize=(12, 8))
-    # Simulated curves
-    plt.plot(df_sim['time'], df_sim['pside_normed'], 'b-', linewidth=2, label='Sim P-side (norm)')
-    plt.plot(df_sim['time'], df_sim['oside_normed'], 'r-', linewidth=2, label='Sim O-side (norm)')
-    # Experimental points
-    plt.scatter(df_exp['time'], df_exp['pside_normed'], color='blue', marker='o', s=40, label='Exp P-side (norm)')
-    plt.scatter(df_exp['time'], df_exp['oside_normed'], color='red', marker='o', s=40, label='Exp O-side (norm)')
-
-    plt.xlabel('Time (s)', fontsize=12)
-    plt.ylabel('Normalized Temperature', fontsize=12)
-    plt.title('Normalized Temperature: Simulation vs Experiment', fontsize=14, fontweight='bold')
-    plt.grid(True, alpha=0.3)
-    plt.legend(fontsize=11)
-    plt.tight_layout()
-    plot_path = 'outputs/test1/temperature_curves.png'
-    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-    print(f"Temperature curves plot saved to: {plot_path}")
-    plt.show()
-
-# Generate the plot
-plot_normalized_temperature_curves()
+    exp_oside_shifted = df_exp['oside'] - oside_initial + ic_temp
+    exp_oside_normed = (exp_oside_shifted - exp_oside_shifted.iloc[0]) / (df_exp['temp'].max() - df_exp['temp'].min())
+    
+    # Plot normalized temperature curves using analysis_utils
+    au.plot_temperature_curves(
+        sim_time=df_sim['time'],
+        sim_pside=sim_pside_normed,
+        sim_oside=sim_oside_normed,
+        exp_pside=exp_pside_normed,
+        exp_oside=exp_oside_normed,
+        exp_time=df_exp['time'],
+        save_path='outputs/test1/temperature_curves.png',
+        show_plot=True
+    )
+    
+    # Calculate RMSE for oside data
+    oside_rmse = au.calculate_rmse(
+        exp_time=df_exp['time'],
+        exp_data=exp_oside_normed,
+        sim_time=df_sim['time'],
+        sim_data=sim_oside_normed
+    )
+    
+    print(f"\n--- RMSE Analysis ---")
+    print(f"O-side RMSE: {oside_rmse:.4f}")
+    print("-------------------\n")
 
 
 
