@@ -179,6 +179,7 @@ class Mesh:
         :func:`gmshio.model_to_mesh`.
         """
         gmsh.initialize()
+        gmsh.option.setNumber("General.Verbosity", 0)
         gmsh.open(filename)
         from dolfinx.io import gmshio
         mesh, cell_tags, facet_tags = gmshio.model_to_mesh(gmsh.model, comm, rank, gdim)
