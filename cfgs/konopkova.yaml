@@ -1,0 +1,22 @@
+heating:
+  file: experimental_data/heat_data.csv
+  fwhm: 1.32e-05
+  ic_temp: 300.0
+material_tags: {}
+mats:
+  sample:
+    cv: 570
+    k: 45
+    mesh: 0.04e-6
+    r: 1.4e-6
+    rho: 11225
+    z: 2.5-06
+  p_ins:
+    cv: 570
+    
+timing:
+  num_steps: 37
+  t_final: 7.5e-6
+io:
+  mesh_path: meshes/with_gask
+
