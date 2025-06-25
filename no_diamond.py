@@ -4,8 +4,9 @@ import os
 import pandas as pd
 import numpy as np
 import analysis_utils as au
+from dolfinx import fem
 
-sim_name = 'geballe_no_diamond'
+sim_name = 'geballe_no_diamond_read_flux'
 
 # Load the configuration
 with open(f'cfgs/{sim_name}.yaml', 'r') as f:
@@ -28,6 +29,8 @@ bnd_o_ins_start = mesh_zmax - z_ins_oside
 
 pside_coupler_z = bnd_p_ins_end + z_coupler/2  # Middle of pside coupler
 oside_coupler_z = bnd_o_ins_start - z_coupler/2  # Middle of oside coupler
+print(f'pside_coupler_z: {pside_coupler_z}, oside_coupler_z: {oside_coupler_z}')
+
 
 # Define watcher points at the center of each coupler (r=0 for centerline)
 watcher_points = {
@@ -38,16 +41,16 @@ watcher_points = {
 # Run the simulation
 run.run_simulation(
     cfg=cfg,
-    mesh_folder='meshes/{sim_name}',
-    rebuild_mesh=True,  # Use existing mesh
-    visualize_mesh=True,
-    output_folder='outputs/{sim_name}',
+    mesh_folder=f'meshes/{sim_name}',
+    rebuild_mesh=False,
+    visualize_mesh=False,
+    output_folder=f'outputs/{sim_name}',
     watcher_points=watcher_points,
     write_xdmf=True,  # No XDMF output as requested
     suppress_print=False
 )
 
-print("Simulation completed! Check outputs/{sim_name}/ for results.")
+print(f"Simulation completed! Check outputs/{sim_name}/ for results.")
 
 # Load simulation watcher data
 watcher_csv_path = 'outputs/{sim_name}/watcher_points.csv'
@@ -80,7 +83,7 @@ else:
         exp_pside=exp_pside_normed,
         exp_oside=exp_oside_normed,
         exp_time=df_exp['time'],
-        save_path='outputs/{sim_name}/temperature_curves.png',
+        save_path=f'outputs/{sim_name}/temperature_curves.png',
         show_plot=True
     )
     

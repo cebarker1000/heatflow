@@ -14,6 +14,8 @@ import time
 from scipy.spatial import cKDTree
 import sys
 import contextlib
+import ufl
+import dolfinx
 
 @contextlib.contextmanager
 def suppress_output(enabled):
@@ -372,7 +374,11 @@ def run_simulation(cfg, mesh_folder, rebuild_mesh=False, visualize_mesh=False, o
             xdmf.write_function(u_n, 0.0) # write initial 
         # -----------------------------------------------------------------------------
 
-        # Watcher point setup
+        # -----------------------------------------------------------------------------
+        # Pre-compute mesh node coordinates (needed for both watcher points and axis data)
+        mesh_coords = domain.geometry.x[:, :2]  # (z, r) for every node
+
+        # Watcher point setup ----------------------------------------------------------
         watcher_data = None
         watcher_names = None
         watcher_time = None
@@ -387,13 +393,11 @@ def run_simulation(cfg, mesh_folder, rebuild_mesh=False, visualize_mesh=False, o
                 raise ValueError("watcher_points must be a dict or list of dicts")
             watcher_data = {name: [] for name in watcher_names}
             watcher_time = []
-            # Set up point location using nearest node approach
-            mesh_coords = domain.geometry.x[:, :2]  # Get 2D coordinates of all nodes
+            # Nearest-node mapping for watcher points
             tree = cKDTree(mesh_coords)
-            # Pre-compute nearest node indices for all watcher points
             watcher_nodes = []
             for coords in watcher_coords:
-                distance, node_idx = tree.query(coords)
+                _, node_idx = tree.query(coords)
                 watcher_nodes.append(node_idx)
         else:
             watcher_names = []
@@ -401,13 +405,80 @@ def run_simulation(cfg, mesh_folder, rebuild_mesh=False, visualize_mesh=False, o
             watcher_data = {}
             watcher_time = []
 
+        # Radial band nodes (0 < r ≤ 0.25 µm) for radial-gradient CSV --------------------
+        band_width = 0.1e-6  # 0.25 micrometre in metres
+        band_mask = (mesh_coords[:, 1] > 0.0) & (mesh_coords[:, 1] <= band_width)
+        band_nodes = np.where(band_mask)[0]
+
+        # Build mapping z -> node list within the band
+        from collections import defaultdict
+        z_to_nodes = defaultdict(list)
+        for n in band_nodes:
+            z_val = mesh_coords[n, 0]
+            z_to_nodes[z_val].append(n)
+
+        # Keep only z positions that actually have nodes
+        z_band = np.array(sorted(z_to_nodes.keys()))
+        band_node_groups = [z_to_nodes[z] for z in z_band]
+
+        # Containers for gradient over time
+        gradient_rows = []  # one list per timestep (averaged grads per z)
+        gradient_time = []
+        
+        print('Setting up radial heat flux sampling...')
+        # Setup computation of radial heat flux
+        V_vec = fem.functionspace(domain, ('Lagrange', 1, (2,)))
+
+        g = ufl.TrialFunction(V_vec)
+        w = ufl.TestFunction(V_vec)
+
+        x         = ufl.SpatialCoordinate(domain)
+        r_coord   = x[1]
+
+        a_proj_ufl = ufl.inner(g, w) * r_coord * ufl.dx          # weighted mass matrix
+        a_proj     = fem.form(a_proj_ufl)                        # wrap!
+        A_proj     = assemble_matrix(a_proj)
+        A_proj.assemble()
+
+        solver_proj = PETSc.KSP().create(A_proj.getComm())
+        solver_proj.setOperators(A_proj)
+        solver_proj.setType(PETSc.KSP.Type.PREONLY)
+        pc_proj = solver_proj.getPC()
+        pc_proj.setType(PETSc.PC.Type.LU)
+        pc_proj.setFactorSolverType("mumps")
+
+        grad_smooth = fem.Function(V_vec, name = 'grad_smooth')
+
+        # ---- once, after mesh_coords is defined ----------------------------
+        dz_bin = 0.1e-6                  # 5 µm slice width, pick any value ≤ element size
+        z_min, z_max = mesh_coords[:,0].min(), mesh_coords[:,0].max()
+        bin_edges = np.arange(z_min, z_max+dz_bin, dz_bin)
+
+        # For every bin, keep indices of nodes that fall inside AND in the radial band
+        band_mask = (mesh_coords[:,1] > 0.0) & (mesh_coords[:,1] <= 0.25e-6)
+        bin_to_nodes = [[] for _ in range(len(bin_edges)-1)]
+        for n in np.where(band_mask)[0]:
+            z = mesh_coords[n,0]
+            k = np.searchsorted(bin_edges, z) - 1
+            if 0 <= k < len(bin_to_nodes):
+                bin_to_nodes[k].append(n)
+
+        # Keep bins that actually have nodes
+        z_centres  = []
+        node_groups = []
+        for k, nodes in enumerate(bin_to_nodes):
+            if nodes:
+                z_centres.append(0.5*(bin_edges[k]+bin_edges[k+1]))
+                node_groups.append(nodes)
+
+        #  z_centres = np.array([...])   # columns of the CSV
+
         # Time stepping loop -----------------------------------------------------------
         from dolfinx.fem.petsc import assemble_vector, apply_lifting, set_bc
         for x in obj_bcs:
             x.update(0.0)
-        progress_interval = max(1, num_steps // 5)
+        progress_interval = max(1, num_steps // 10)
 
-        
         step_times = []
         loop_start_time = time.time()
 
@@ -427,6 +498,21 @@ def run_simulation(cfg, mesh_folder, rebuild_mesh=False, visualize_mesh=False, o
             set_bc(b, bcs)
             solver.solve(b, u_n.x.petsc_vec)
             u_n.x.scatter_forward()
+
+            # Get smoothed gradient
+            rhs_proj_ufl = ufl.inner(ufl.grad(u_n), w) * r_coord * ufl.dx
+            rhs_proj     = fem.form(rhs_proj_ufl)                    # wrap!
+            b_proj       = create_vector(rhs_proj)
+            assemble_vector(b_proj, rhs_proj)
+
+            solver_proj.solve(b_proj, grad_smooth.x.petsc_vec)
+            grad_smooth.x.scatter_forward()
+
+            # record averaged radial gradient in the band
+            grad_arr = grad_smooth.x.array.reshape(-1,2)
+            radial_vals = [float(np.mean(grad_arr[nodes,1])) for nodes in node_groups]
+            gradient_rows.append(radial_vals)
+            gradient_time.append(t)
 
             if write_xdmf:
                 xdmf.write_function(u_n, t)
@@ -461,6 +547,14 @@ def run_simulation(cfg, mesh_folder, rebuild_mesh=False, visualize_mesh=False, o
             for name in watcher_names:
                 df[name] = watcher_data[name]
             df.to_csv(watcher_csv_path, index=False)
+
+        # Write radial gradient CSV only if we have data
+        if gradient_rows:
+            radial_grad_csv_path = os.path.join(save_folder, "radial_gradient.csv")
+            grad_df = pd.DataFrame(gradient_rows, columns=z_centres)
+            grad_df.index = gradient_time
+            grad_df.index.name = 'time'
+            grad_df.to_csv(radial_grad_csv_path)
 
         # Timing outputs before plotting
         program_end_time = time.time()
