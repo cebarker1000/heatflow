@@ -1,12 +1,10 @@
-import run_no_diamond as run
+import run_no_diamond_1d as run
 import yaml
 import os
 import pandas as pd
-import numpy as np
 import analysis_utils as au
-from dolfinx import fem
 
-sim_name = 'geballe_no_diamond_read_flux'
+sim_name = 'geballe_1d'
 
 # Load the configuration
 with open(f'cfgs/{sim_name}.yaml', 'r') as f:
@@ -38,17 +36,19 @@ watcher_points = {
     'oside': (oside_coupler_z, 0.0)   # (z, r) coordinates
 }
 
-# Run the simulation
-run.run_simulation(
-    cfg=cfg,
-    mesh_folder=f'meshes/{sim_name}',
-    rebuild_mesh=False,
-    visualize_mesh=False,
-    output_folder=f'outputs/{sim_name}',
-    watcher_points=watcher_points,
-    write_xdmf=True,  # No XDMF output as requested
-    suppress_print=False
-)
+mesh_folder_2d = f'meshes/geballe_no_diamond_read_flux'
+mesh_folder_1d = f'meshes/{sim_name}'
+
+run.run_1d(cfg, 
+           mesh_folder_2d = mesh_folder_2d, 
+           mesh_folder_1d = mesh_folder_1d,
+           visualize_mesh = True,
+           rebuild_mesh = True,
+           output_folder = f'outputs/{sim_name}',
+           watcher_points = watcher_points,
+           write_xdmf = True,
+           suppress_print = False,
+           use_radial_correction = True)
 
 print(f"Simulation completed! Check outputs/{sim_name}/ for results.")
 
@@ -60,20 +60,20 @@ else:
     df_sim = pd.read_csv(watcher_csv_path)
     
     # Load experimental data
-    df_exp = pd.read_csv('experimental_data/geballe_heat_data.csv')
+    df_exp = pd.read_csv('outputs/geballe_no_diamond_read_flux/watcher_points.csv')
     
     # Normalize simulation data
     sim_pside_normed = (df_sim['pside'] - df_sim['pside'].iloc[0]) / (df_sim['pside'].max() - df_sim['pside'].min())
     sim_oside_normed = (df_sim['oside'] - df_sim['oside'].iloc[0]) / (df_sim['pside'].max() - df_sim['pside'].min())
     
     # Normalize experimental data
-    exp_pside_normed = (df_exp['temp'] - df_exp['temp'].iloc[0]) / (df_exp['temp'].max() - df_exp['temp'].min())
+    exp_pside_normed = (df_exp['pside'] - df_exp['pside'].iloc[0]) / (df_exp['pside'].max() - df_exp['pside'].min())
     
     # Downshift experimental oside to start from ic_temp and normalize
     ic_temp = cfg['heating']['ic_temp']
     oside_initial = df_exp['oside'].iloc[0]
     exp_oside_shifted = df_exp['oside'] - oside_initial + ic_temp
-    exp_oside_normed = (exp_oside_shifted - exp_oside_shifted.iloc[0]) / (df_exp['temp'].max() - df_exp['temp'].min())
+    exp_oside_normed = (exp_oside_shifted - exp_oside_shifted.iloc[0]) / (df_exp['pside'].max() - df_exp['pside'].min())
     
     # Plot normalized temperature curves using analysis_utils
     au.plot_temperature_curves(
@@ -98,9 +98,3 @@ else:
     print(f"\n--- RMSE Analysis ---")
     print(f"O-side RMSE: {oside_rmse:.4f}")
     print("-------------------\n")
-
-
-
-
-
-

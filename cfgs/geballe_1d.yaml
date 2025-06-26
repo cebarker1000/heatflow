@@ -4,13 +4,6 @@ heating:
   ic_temp: 300.0
 material_tags: {}
 mats:
-  g_ins:
-    cv: 668
-    k: 10
-    mesh: 0.05e-6
-    r: 20e-6
-    rho: 4131
-    z: 45e-6
   o_coupler:
     cv: 130
     k: 352
@@ -47,7 +40,7 @@ mats:
     rho: 5164
     z: 1.84e-06
 timing:
-  num_steps: 37
+  num_steps: 50
   t_final: 7.5e-6
 io:
   mesh_path: meshes/with_gask

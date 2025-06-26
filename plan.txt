@@ -1,0 +1,60 @@
+Yes, that makes perfect sense. It's a much more efficient and logical approach. We will treat the 1D simulation as a post-processing step that consumes the outputs of a pre-existing 2D simulation.
+
+Here is the updated summary reflecting this change:
+
+---
+
+### **Goal: Create a 1D Heat Flow Simulation with a Radial Heat Sink Term**
+
+#### **1. Where We Left Off: The 2D Simulation**
+- We have a working 2D simulation (`run_no_diamond.py`) that produces two key outputs:
+  1. A 2D mesh file (`mesh.msh`).
+  2. A radial gradient file (`radial_gradient.csv`).
+
+---
+
+#### **2. Desired Plan: 1D Simulation as a Standalone Script**
+- Your goal is to create a 1D simulation that reads the outputs from a completed 2D run. This decouples the simulations, so you don't have to re-run the 2D part every time.
+
+---
+
+#### **3. The Plan in Detail**
+
+##### **3.1. Inputs for the 1D Driver**
+- The new `run_no_diamond_1d.py` script will take file paths as arguments to its main `run_simulation` function:
+  - `two_d_mesh_path`: The full path to the 2D `mesh.msh` file.
+  - `grad_csv_path`: The full path to the `radial_gradient.csv` from the same 2D run.
+  - `output_folder`: A new directory to save the results of the *1D* simulation.
+
+##### **3.2. 1D Mesh Construction**
+- Instead of building any mesh from scratch, the script will:
+  1. **Load the 2D mesh** from the provided `two_d_mesh_path`.
+  2. **Extract the 1D submesh** representing the r=0 axis using `dolfinx.mesh.create_entity_submesh`.
+- This ensures the 1D mesh is perfectly aligned with the 2D data.
+
+##### **3.3. Heat Sink/Source Term Logic**
+- This remains the same:
+  - Read the `grad_csv_path`.
+  - Spline-smooth the gradient in z.
+  - Double the value (for symmetry).
+  - Multiply by local thermal conductivity (k).
+  - Apply as a source term in the 1D heat equation.
+
+##### **3.4. Boundary Conditions, Time Stepping, and Outputs**
+- These also remain the same as previously discussed:
+  - 300 K Dirichlet BCs at both ends of the 1D submesh.
+  - Heating dirichlet condition at the specified z-value.
+  - Time grid taken from the same YAML config.
+  - Outputs (XDMF, watcher CSVs) saved to the new 1D `output_folder`.
+
+---
+
+### **Tomorrow’s First Step**
+
+- We will create the `run_no_diamond_1d.py` script with a `run_simulation` function that:
+  1. Takes file paths for the 2D mesh and gradient CSV as input.
+  2. Loads the 2D mesh.
+  3. Extracts the 1D submesh from the r=0 axis.
+- We'll confirm this setup works before proceeding to implement the source term and time-stepping loop.
+
+This revised plan is much cleaner. I'm ready to start whenever you are
