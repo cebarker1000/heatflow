@@ -29,7 +29,6 @@ bnd_o_ins_start = mesh_zmax - z_ins_oside
 
 pside_coupler_z = bnd_p_ins_end + z_coupler/2  # Middle of pside coupler
 oside_coupler_z = bnd_o_ins_start - z_coupler/2  # Middle of oside coupler
-print(f'pside_coupler_z: {pside_coupler_z}, oside_coupler_z: {oside_coupler_z}')
 
 
 # Define watcher points at the center of each coupler (r=0 for centerline)

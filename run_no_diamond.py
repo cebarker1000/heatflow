@@ -491,7 +491,7 @@ def run_simulation(cfg, mesh_folder, rebuild_mesh=False, visualize_mesh=False, o
         grad_smooth = fem.Function(V_vec, name = 'grad_smooth')
 
         # ---- once, after mesh_coords is defined ----------------------------
-        dz_bin = 0.1e-6                  
+        dz_bin = 0.2e-6                  
         z_min, z_max = mesh_coords[:,0].min(), mesh_coords[:,0].max()
         bin_edges = np.arange(z_min, z_max+dz_bin, dz_bin)
 
