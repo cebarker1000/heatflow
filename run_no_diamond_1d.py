@@ -163,7 +163,7 @@ def extract_1d_submesh_from_2d(domain_2d, cell_tags_2d, tolerance=1e-10):
     
     return domain_1d, cell_tags_1d, maps
 
-def run_1d(cfg, mesh_folder_2d, mesh_folder_1d=None, rebuild_mesh=False, visualize_mesh=False, output_folder=None, watcher_points=None, write_xdmf=True, suppress_print=False, use_radial_correction=True):
+def run_1d(cfg, mesh_folder_2d, mesh_folder_1d=None, rebuild_mesh=False, visualize_mesh=False, output_folder=None, watcher_points=None, write_xdmf=True, suppress_print=False, use_radial_correction=True, radial_gradient_path=None):
     """
     Run the 1D heatflow simulation with the given configuration.
     
@@ -187,6 +187,8 @@ def run_1d(cfg, mesh_folder_2d, mesh_folder_1d=None, rebuild_mesh=False, visuali
         If True, suppress all print output
     use_radial_correction : bool, optional
         Whether to apply radial heating correction from 2D simulation data
+    radial_gradient_path : str, optional
+        Path to a radial gradient CSV file to use for radial correction. If None, auto-search is used.
     """
     
     with suppress_output(suppress_print):
@@ -310,38 +312,34 @@ def run_1d(cfg, mesh_folder_2d, mesh_folder_1d=None, rebuild_mesh=False, visuali
         
         # NEW: Load radial gradient data from 2D simulation for heating correction
         print('Loading radial gradient data from 2D simulation...')
-        
-        # Initialize radial correction variables
         grad_interp = None
-        
         if use_radial_correction:
-            # Find the 2D simulation output folder
-            # We'll look for the smoothed radial_gradient.csv file (more physically motivated)
-            potential_2d_outputs = [
-                os.path.join(mesh_folder_2d, '..', 'outputs', 'geballe_no_diamond_read_flux'),
-                os.path.join(mesh_folder_2d, '..', '..', 'outputs', 'geballe_no_diamond_read_flux'),
-                os.path.join(os.getcwd(), 'outputs', 'geballe_no_diamond_read_flux'),
-                os.path.join(os.getcwd(), 'sim_outputs', 'geballe_no_diamond_read_flux')
-            ]
-            
-            # Try smoothed gradient first (more physically motivated)
-            radial_grad_file = None
-            for output_dir in potential_2d_outputs:
-                test_file = os.path.join(output_dir, 'radial_gradient.csv')
-                if os.path.exists(test_file):
-                    radial_grad_file = test_file
-                    print(f"Found smoothed radial gradient file: {radial_grad_file}")
-                    break
-            
-            # Fallback to raw gradient if smoothed not available
-            if radial_grad_file is None:
+            # If a path is provided, use it directly
+            if radial_gradient_path is not None:
+                radial_grad_file = radial_gradient_path
+                print(f"Using user-specified radial gradient file: {radial_grad_file}")
+            else:
+                # Existing auto-search logic
+                potential_2d_outputs = [
+                    os.path.join(mesh_folder_2d, '..', 'outputs', 'geballe_no_diamond_read_flux'),
+                    os.path.join(mesh_folder_2d, '..', '..', 'outputs', 'geballe_no_diamond_read_flux'),
+                    os.path.join(os.getcwd(), 'outputs', 'geballe_no_diamond_read_flux'),
+                    os.path.join(os.getcwd(), 'sim_outputs', 'geballe_no_diamond_read_flux')
+                ]
+                radial_grad_file = None
                 for output_dir in potential_2d_outputs:
-                    test_file = os.path.join(output_dir, 'radial_gradient_raw.csv')
+                    test_file = os.path.join(output_dir, 'radial_gradient.csv')
                     if os.path.exists(test_file):
                         radial_grad_file = test_file
-                        print(f"Found raw radial gradient file: {radial_grad_file}")
+                        print(f"Found smoothed radial gradient file: {radial_grad_file}")
                         break
-            
+                if radial_grad_file is None:
+                    for output_dir in potential_2d_outputs:
+                        test_file = os.path.join(output_dir, 'radial_gradient_raw.csv')
+                        if os.path.exists(test_file):
+                            radial_grad_file = test_file
+                            print(f"Found raw radial gradient file: {radial_grad_file}")
+                            break
             if radial_grad_file is None:
                 print("Warning: Could not find radial gradient file. Disabling radial heating correction.")
                 use_radial_correction = False

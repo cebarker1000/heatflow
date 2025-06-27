@@ -4,10 +4,10 @@ import os
 import pandas as pd
 import analysis_utils as au
 
-sim_name = 'geballe_1d'
+sim_name = 'fwhm_1.30e-5_k_3.68_width_1.90e-6'
 
 # Load the configuration
-with open(f'cfgs/{sim_name}.yaml', 'r') as f:
+with open(f'outputs/sweep_test/{sim_name}/used_config.yaml', 'r') as f:
     cfg = yaml.safe_load(f)
 
 # Extract parameters from config (no diamond or gasket)
@@ -36,8 +36,10 @@ watcher_points = {
     'oside': (oside_coupler_z, 0.0)   # (z, r) coordinates
 }
 
-mesh_folder_2d = f'meshes/geballe_no_diamond_read_flux'
-mesh_folder_1d = f'meshes/{sim_name}'
+mesh_folder_2d = f'meshes/width_1.900e-6'
+mesh_folder_1d = f'meshes/1d_meshes/{sim_name}'
+radial_gradient_path = f'outputs/sweep_test/{sim_name}/gaussfit_full.csv'
+#radial_gradient_path = f'outputs/sweep_test/{sim_name}/radial_gradient.csv'
 
 run.run_1d(cfg, 
            mesh_folder_2d = mesh_folder_2d, 
@@ -48,7 +50,8 @@ run.run_1d(cfg,
            watcher_points = watcher_points,
            write_xdmf = True,
            suppress_print = False,
-           use_radial_correction = True)
+           use_radial_correction = True,
+           radial_gradient_path = radial_gradient_path)
 
 print(f"Simulation completed! Check outputs/{sim_name}/ for results.")
 
@@ -60,7 +63,7 @@ else:
     df_sim = pd.read_csv(watcher_csv_path)
     
     # Load experimental data
-    df_exp = pd.read_csv('outputs/geballe_no_diamond_read_flux/watcher_points.csv')
+    df_exp = pd.read_csv(f'outputs/sweep_test/{sim_name}/watcher_points.csv')
     
     # Normalize simulation data
     sim_pside_normed = (df_sim['pside'] - df_sim['pside'].iloc[0]) / (df_sim['pside'].max() - df_sim['pside'].min())
